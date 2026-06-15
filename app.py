@@ -38,11 +38,11 @@ st.set_page_config(page_title="만월 스터디 도장판", page_icon="🌕")
 st.title("🌕 만월 스터디")
 
 # 1. 인증하기 영역
-st.subheader("✅ 오늘의 인증 올리기")
-selected_user = st.selectbox("누구신가요?", list(USERS.keys()), key="auth_user")
+st.subheader("일일 인증(전공 + 교과교재론)")
+selected_user = st.selectbox("이름 선택", list(USERS.keys()), key="auth_user")
 
 uploaded_files = st.file_uploader(
-    "오늘 푼 문제 사진을 모두 올려주세요! (여러 장 선택 가능, 하루 여러 번 추가 가능)", 
+    "오늘 푼 문제를 모두 올려주세요!", 
     type=['png', 'jpg', 'jpeg'], 
     accept_multiple_files=True
 )
@@ -82,7 +82,7 @@ if st.button("인증 완료하기"):
 st.divider()
 
 # 2. 2026년 하반기 전체 누적 통계 영역
-st.subheader("📊 2026년 하반기 누적 도장판 (6월 ~ 11월)")
+st.subheader("📊 2026년 하반기 누적 도장판")
 total_stats = {user: 0 for user in USERS.keys()}
 
 for date_str, users in auth_records.items():
