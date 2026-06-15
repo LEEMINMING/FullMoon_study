@@ -33,13 +33,33 @@ def save_data(data, filename):
 auth_records = load_data(DATA_FILE)
 comments_records = load_data(COMMENTS_FILE)
 
+
+# 네잎클로버가 쏟아지는 함수
+def st_clovers():
+    import random
+    html = "<style>\n"
+    html += "@keyframes clovers-fall { 0% { top: -10vh; opacity: 1; transform: rotate(0deg); } 100% { top: 110vh; opacity: 0; transform: rotate(360deg); } }\n"
+    html += ".clover { position: fixed; z-index: 9999; user-select: none; animation: clovers-fall linear forwards; }\n"
+    html += "</style>\n"
+    
+    # 50개의 네잎클로버를 화면 곳곳에 뿌립니다
+    for _ in range(50):
+        left = random.randint(0, 100)
+        duration = random.uniform(2.5, 5.0) # 떨어지는 속도
+        delay = random.uniform(0, 1.5)      # 떨어지기 시작하는 시간차
+        size = random.uniform(1.5, 3.0)     # 클로버 크기
+        html += f'<div class="clover" style="left: {left}vw; font-size: {size}rem; animation-duration: {duration}s; animation-delay: {delay}s;">🍀</div>\n'
+        
+    st.markdown(html, unsafe_allow_html=True)
+
+
 # --- 웹 페이지 UI 시작 ---
 st.set_page_config(page_title="만월 스터디 도장판", page_icon="🌕")
 st.title("🌕 만월 스터디")
 
 # 1. 인증하기 영역
 st.subheader("일일 인증(전공 + 교과교재론)")
-selected_user = st.selectbox("이름 선택", list(USERS.keys()), key="auth_user")
+selected_user = st.selectbox("스터디원", list(USERS.keys()), key="auth_user")
 
 uploaded_files = st.file_uploader(
     "오늘 푼 문제를 모두 올려주세요!", 
@@ -72,7 +92,7 @@ if st.button("인증 완료하기"):
             auth_records[today].append(selected_user)
             save_data(auth_records, DATA_FILE)
             st.success(f"{USERS[selected_user]} {selected_user}님, 오늘 첫 인증과 함께 {len(uploaded_files)}장의 사진이 등록되었습니다! 🍀")
-            st.balloons()
+            st_clovers()
         else:
             st.success(f"{USERS[selected_user]} {selected_user}님, 열공하시네요! {len(uploaded_files)}장의 사진이 추가로 등록되었습니다! 👍")
             
@@ -134,7 +154,7 @@ st.markdown(calendar_md)
 st.divider()
 
 # 4. 사진 구경하기 및 피드백(댓글) 영역
-st.subheader("🖼️ 만월 스터디 사진관 & 피드백")
+st.subheader("인증 문제 살펴보기")
 
 available_dates = sorted(list(auth_records.keys()), reverse=True)
 
