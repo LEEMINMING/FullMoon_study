@@ -38,11 +38,11 @@ st.set_page_config(page_title="만월 스터디 도장판", page_icon="🌕")
 st.title("🌕 만월 스터디")
 
 # 1. 인증하기 영역
-st.subheader("매일 인증하기")
-selected_user = st.selectbox("이름 설정", list(USERS.keys()), key="auth_user")
+st.subheader("✅ 오늘의 인증 올리기")
+selected_user = st.selectbox("누구신가요?", list(USERS.keys()), key="auth_user")
 
 uploaded_files = st.file_uploader(
-    "오늘 푼 문제 사진을 모두 올려주세요! (여러 장 선택 가능)", 
+    "오늘 푼 문제 사진을 모두 올려주세요! (여러 장 선택 가능, 하루 여러 번 추가 가능)", 
     type=['png', 'jpg', 'jpeg'], 
     accept_multiple_files=True
 )
@@ -54,22 +54,28 @@ if st.button("인증 완료하기"):
         if today not in auth_records:
             auth_records[today] = []
             
-        if selected_user not in auth_records[today]:
-            for idx, file in enumerate(uploaded_files):
-                file_extension = file.name.split('.')[-1]
-                save_filename = f"{today}_{selected_user}_{idx}.{file_extension}"
-                save_path = os.path.join(IMAGE_DIR, save_filename)
-                
-                with open(save_path, "wb") as f:
-                    f.write(file.getbuffer())
+        # 💡 [핵심 변경] 파일 이름 겹침 방지를 위해 현재 시간(시분초)을 가져옵니다.
+        now_time = datetime.datetime.now().strftime("%H%M%S")
+        
+        # 무조건 사진 파일은 저장합니다 (추가 업로드 허용)
+        for idx, file in enumerate(uploaded_files):
+            file_extension = file.name.split('.')[-1]
+            # 파일명 예시: 2026-06-15_희종_143025_0.jpg (시간이 붙어 절대 겹치지 않음)
+            save_filename = f"{today}_{selected_user}_{now_time}_{idx}.{file_extension}"
+            save_path = os.path.join(IMAGE_DIR, save_filename)
             
+            with open(save_path, "wb") as f:
+                f.write(file.getbuffer())
+        
+        # 💡 [핵심 변경] 오늘 처음 올리는 건지, 추가로 올리는 건지에 따라 메시지를 다르게 줍니다.
+        if selected_user not in auth_records[today]:
             auth_records[today].append(selected_user)
             save_data(auth_records, DATA_FILE)
-            
-            st.success(f"{USERS[selected_user]} {selected_user}님, 총 {len(uploaded_files)}장의 사진으로 오늘 인증 완료! 🍀")
+            st.success(f"{USERS[selected_user]} {selected_user}님, 오늘 첫 인증과 함께 {len(uploaded_files)}장의 사진이 등록되었습니다! 🍀")
             st.balloons()
         else:
-            st.warning("오늘은 이미 인증하셨습니다! 내일 또 만나요🍀.")
+            st.success(f"{USERS[selected_user]} {selected_user}님, 열공하시네요! {len(uploaded_files)}장의 사진이 추가로 등록되었습니다! 👍")
+            
     else:
         st.error("사진을 꼭 첨부해 주세요!")
 
@@ -142,8 +148,9 @@ if available_dates:
             with gallery_cols[i]:
                 st.write(f"**{USERS[user]} {user}의 인증샷**")
                 
+                # 추가로 올린 모든 사진들을 시간 상관없이 다 찾아서 보여줍니다.
                 pattern = os.path.join(IMAGE_DIR, f"{view_date}_{user}*.*")
-                matching_files = glob.glob(pattern)
+                matching_files = sorted(glob.glob(pattern)) # 올린 순서대로 정렬
                 
                 if matching_files:
                     st.image(matching_files, use_container_width=True)
@@ -155,19 +162,16 @@ if available_dates:
         # --- 피드백(댓글) 기능 시작 ---
         st.write(f"💬 **{view_date} 스터디 피드백**")
         
-        # 💡 [핵심 변경] 댓글 출력 부분에 삭제 버튼을 달았습니다.
         if view_date in comments_records and len(comments_records[view_date]) > 0:
             for idx, comment in enumerate(comments_records[view_date]):
-                # 화면을 가로로 나눠서 왼쪽엔 댓글, 오른쪽엔 삭제 버튼 배치
                 col1, col2 = st.columns([9, 1])
                 with col1:
                     st.info(f"{USERS[comment['author']]} **{comment['author']}**: {comment['text']}")
                 with col2:
-                    # 삭제 버튼 클릭 시 동작
                     if st.button("❌", key=f"del_{view_date}_{idx}", help="댓글 삭제"):
-                        comments_records[view_date].pop(idx) # 데이터에서 삭제
-                        save_data(comments_records, COMMENTS_FILE) # 저장
-                        st.rerun() # 화면 즉시 새로고침
+                        comments_records[view_date].pop(idx) 
+                        save_data(comments_records, COMMENTS_FILE)
+                        st.rerun() 
         else:
             st.write("아직 작성된 피드백이 없어요. 첫 번째 응원을 남겨주세요!")
             
@@ -192,6 +196,6 @@ if available_dates:
                         "text": comment_text
                     })
                     save_data(comments_records, COMMENTS_FILE)
-                    st.rerun() # 댓글 달면 즉시 보이도록 새로고침
+                    st.rerun() 
 else:
     st.info("아직 저장된 인증 사진이 없습니다. 첫 번째 인증을 남겨주세요!")
