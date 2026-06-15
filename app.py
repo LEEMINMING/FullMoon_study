@@ -219,3 +219,4 @@ if available_dates:
                     st.rerun() 
 else:
     st.info("아직 저장된 인증 사진이 없습니다. 첫 번째 인증을 남겨주세요!")
+
