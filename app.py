@@ -55,6 +55,17 @@ def st_clovers():
 
 # --- 웹 페이지 UI 시작 ---
 st.set_page_config(page_title="만월 스터디 도장판", page_icon="🌕")
+
+# 💡 [여기에 추가] 우측 상단 메뉴와 기본 꼬리말을 숨기는 코드
+hide_menu_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """
+st.markdown(hide_menu_style, unsafe_allow_html=True)
+
 st.title("🌕 만월 스터디")
 
 # 1. 인증하기 영역
@@ -219,4 +230,6 @@ if available_dates:
                     st.rerun() 
 else:
     st.info("아직 저장된 인증 사진이 없습니다. 첫 번째 인증을 남겨주세요!")
+
+
 
