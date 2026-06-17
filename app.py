@@ -4,11 +4,13 @@ import calendar
 import json
 import os
 import glob
+from github import Github # 💡 [추가] 깃허브 자동 저장 라이브러리
 
 # --- 설정 부분 ---
 DATA_FILE = 'study_data.json'
 COMMENTS_FILE = 'comments_data.json' 
 IMAGE_DIR = 'images'
+REPO_NAME = "LEEMINMING/FullMoon_study" # 💡 [추가] 질문자님의 깃허브 주소
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
@@ -19,16 +21,42 @@ USERS = {
     "승민": "🐰"
 }
 
-# --- 데이터 로드 및 저장 함수 ---
+# 💡 [추가] 깃허브 연결 확인 (스트림릿 Secrets에서 토큰을 가져옵니다)
+try:
+    github_token = st.secrets["GITHUB_TOKEN"]
+    g = Github(github_token)
+    repo = g.get_repo(REPO_NAME)
+except Exception as e:
+    st.error("앗! 깃허브 연결에 실패했습니다. Streamlit Settings의 Secrets에 토큰을 올바르게 넣었는지 확인해 주세요.")
+    st.stop()
+
+# --- 데이터 로드 및 깃허브 영구 저장 함수 ---
 def load_data(filename):
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             return json.load(f)
     return {}
 
-def save_data(data, filename):
+# 💡 [변경] 로컬 저장뿐만 아니라 깃허브에도 즉시 파일을 올리는 마법의 함수
+def save_data_to_github(data, filename):
+    # 1. 화면에 바로 보이도록 내 컴퓨터(로컬)에도 저장
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+        
+    # 2. 깃허브에 파일 강제 업로드 (영구 보존)
+    content = json.dumps(data, ensure_ascii=False, indent=4)
+    try:
+        contents = repo.get_contents(filename)
+        repo.update_file(contents.path, f"자동 업데이트: {filename}", content, contents.sha)
+    except Exception:
+        repo.create_file(filename, f"자동 생성: {filename}", content)
+
+def save_image_to_github(save_path, file_bytes):
+    # 사진 파일을 깃허브에 업로드
+    try:
+        repo.get_contents(save_path) # 이미 있는지 확인
+    except Exception:
+        repo.create_file(save_path, f"인증 사진 업로드: {save_path}", file_bytes)
 
 auth_records = load_data(DATA_FILE)
 comments_records = load_data(COMMENTS_FILE)
@@ -56,7 +84,7 @@ def st_clovers():
 # --- 웹 페이지 UI 시작 ---
 st.set_page_config(page_title="만월 스터디 도장판", page_icon="🌕")
 
-# 💡 [여기에 추가] 우측 상단 메뉴와 기본 꼬리말을 숨기는 코드
+# 우측 상단 메뉴와 기본 꼬리말을 숨기는 코드
 hide_menu_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -80,33 +108,38 @@ uploaded_files = st.file_uploader(
 
 if st.button("인증 완료하기"):
     if uploaded_files:
-        today = str(datetime.date.today())
-        
-        if today not in auth_records:
-            auth_records[today] = []
+        # 💡 [추가] 업로드 진행 중일 때 로딩 메시지를 띄웁니다.
+        with st.spinner("⏳"):
+            today = str(datetime.date.today())
             
-        # 💡 [핵심 변경] 파일 이름 겹침 방지를 위해 현재 시간(시분초)을 가져옵니다.
-        now_time = datetime.datetime.now().strftime("%H%M%S")
-        
-        # 무조건 사진 파일은 저장합니다 (추가 업로드 허용)
-        for idx, file in enumerate(uploaded_files):
-            file_extension = file.name.split('.')[-1]
-            # 파일명 예시: 2026-06-15_희종_143025_0.jpg (시간이 붙어 절대 겹치지 않음)
-            save_filename = f"{today}_{selected_user}_{now_time}_{idx}.{file_extension}"
-            save_path = os.path.join(IMAGE_DIR, save_filename)
+            if today not in auth_records:
+                auth_records[today] = []
+                
+            now_time = datetime.datetime.now().strftime("%H%M%S")
             
-            with open(save_path, "wb") as f:
-                f.write(file.getbuffer())
-        
-        # 💡 [핵심 변경] 오늘 처음 올리는 건지, 추가로 올리는 건지에 따라 메시지를 다르게 줍니다.
-        if selected_user not in auth_records[today]:
-            auth_records[today].append(selected_user)
-            save_data(auth_records, DATA_FILE)
-            st.success(f"{USERS[selected_user]} {selected_user}님, 오늘 첫 인증과 함께 {len(uploaded_files)}장의 사진이 등록되었습니다! 🍀")
-            st_clovers()
-        else:
-            st.success(f"{USERS[selected_user]} {selected_user}님, 열공하시네요! {len(uploaded_files)}장의 사진이 추가로 등록되었습니다! 👍")
+            for idx, file in enumerate(uploaded_files):
+                file_extension = file.name.split('.')[-1]
+                save_filename = f"{today}_{selected_user}_{now_time}_{idx}.{file_extension}"
+                # 깃허브 저장 경로에 맞게 슬래시(/) 사용
+                save_path = f"{IMAGE_DIR}/{save_filename}" 
+                
+                file_bytes = file.getvalue()
+                
+                # 로컬 저장
+                with open(os.path.join(IMAGE_DIR, save_filename), "wb") as f:
+                    f.write(file_bytes)
+                
+                # 깃허브 영구 업로드
+                save_image_to_github(save_path, file_bytes)
             
+            if selected_user not in auth_records[today]:
+                auth_records[today].append(selected_user)
+                save_data_to_github(auth_records, DATA_FILE)
+                st.success(f"{USERS[selected_user]} {selected_user}님, 오늘 첫 인증과 함께 {len(uploaded_files)}장의 사진이 저장되었습니다! 🍀")
+                st_clovers()
+            else:
+                st.success(f"{USERS[selected_user]} {selected_user}님, 열공하시네요! {len(uploaded_files)}장의 사진이 추가로 저장되었습니다! 👍")
+                
     else:
         st.error("사진을 꼭 첨부해 주세요!")
 
@@ -177,7 +210,7 @@ if available_dates:
         gallery_cols = st.columns(len(users_on_date))
         for i, user in enumerate(users_on_date):
             with gallery_cols[i]:
-                st.write(f"**{USERS[user]} {user}의 인증샷**")
+                st.write(f"{USERS[user]} {user}의 인증샷")
                 
                 # 추가로 올린 모든 사진들을 시간 상관없이 다 찾아서 보여줍니다.
                 pattern = os.path.join(IMAGE_DIR, f"{view_date}_{user}*.*")
@@ -191,7 +224,7 @@ if available_dates:
         st.write("---")
         
         # --- 피드백(댓글) 기능 시작 ---
-        st.write(f"💬 **{view_date} 스터디 피드백**")
+        st.write(f"💬 {view_date} 피드백")
         
         if view_date in comments_records and len(comments_records[view_date]) > 0:
             for idx, comment in enumerate(comments_records[view_date]):
@@ -200,9 +233,10 @@ if available_dates:
                     st.info(f"{USERS[comment['author']]} **{comment['author']}**: {comment['text']}")
                 with col2:
                     if st.button("❌", key=f"del_{view_date}_{idx}", help="댓글 삭제"):
-                        comments_records[view_date].pop(idx) 
-                        save_data(comments_records, COMMENTS_FILE)
-                        st.rerun() 
+                        with st.spinner("삭제 중... ⏳"):
+                            comments_records[view_date].pop(idx) 
+                            save_data_to_github(comments_records, COMMENTS_FILE)
+                            st.rerun() 
         else:
             st.write("아직 작성된 피드백이 없어요. 첫 번째 응원을 남겨주세요!")
             
@@ -219,17 +253,15 @@ if available_dates:
                 if comment_text.strip() == "":
                     st.error("댓글 내용을 입력해 주세요!")
                 else:
-                    if view_date not in comments_records:
-                        comments_records[view_date] = []
-                        
-                    comments_records[view_date].append({
-                        "author": commenter,
-                        "text": comment_text
-                    })
-                    save_data(comments_records, COMMENTS_FILE)
-                    st.rerun() 
+                    with st.spinner("댓글을 기록 중입니다... ⏳"):
+                        if view_date not in comments_records:
+                            comments_records[view_date] = []
+                            
+                        comments_records[view_date].append({
+                            "author": commenter,
+                            "text": comment_text
+                        })
+                        save_data_to_github(comments_records, COMMENTS_FILE)
+                        st.rerun() 
 else:
     st.info("아직 저장된 인증 사진이 없습니다. 첫 번째 인증을 남겨주세요!")
-
-
-
